@@ -29,6 +29,7 @@ process slim {
     // slim ... -s 1234 ...
     tag "s${command.split('-s ')[1].split(' ')[0]}"
     time '30min'
+    errorStrategy 'ignore'
     fair true // Maintain the order of different simulations
     input:
     tuple path(source), val(command)
@@ -71,14 +72,15 @@ process combineSimulations {
 
 process plot {
     container 'rocker/tidyverse:latest'
+    publishDir "results", mode: 'copy'
     input:
     path data
     output:
-    path "figure.svg"
+    path "figure.pdf"
 
     script:
     """
-    plot.R $data figure.svg
+    plot.R $data figure.pdf
     """
 }
 
@@ -90,6 +92,6 @@ workflow {
          .map {it -> [source, it.trim()]}
     results = inputs | slim | analysis
     // First value is the theta, then the result of results
-    theta.mix(results) | collect | combineSimulations 
+    theta.mix(results) | collect | combineSimulations | plot
 }
 

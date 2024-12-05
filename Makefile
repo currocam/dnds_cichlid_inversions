@@ -7,4 +7,4 @@ $(IMAGE): $(DEF_FILE)
 env : $(IMAGE)
 
 run: $(IMAGE) $(SCRIPT)
-	./$(SCRIPT) -resume -with-apptainer $(IMAGE)
+	./$(SCRIPT) -qs 30 -resume -with-apptainer $(IMAGE)
