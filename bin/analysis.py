@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
 from typing import Tuple
-import io, sys
+import io, sys, re
 
 # Parse the VCF file into a pandas DataFrame
 def read_vcf(path: str) -> pd.DataFrame:
@@ -17,6 +17,20 @@ def read_vcf(path: str) -> pd.DataFrame:
                'QUAL': str, 'FILTER': str, 'INFO': str},
         sep='\t'
     ).rename(columns={'#CHROM': 'CHROM'})
+
+def extract_expected_ratios(path: str) -> dict:
+    data_pattern = re.compile(r"##<N/S=(?P<ns>[-+]?\d*\.\d+|\d+),D/S=(?P<ds>[-+]?\d*\.\d+|\d+)>")
+    with open(path, 'r') as file:
+        line = next(file)
+        while line.startswith("##"):
+            match = data_pattern.match(line)
+            if match:
+                return {
+                    "N/S": float(match.group("ns")),
+                    "D/S": float(match.group("ds"))
+                }
+            line = next(file)    
+    raise ValueError("No valid line with the pattern '#<N/S=value,D/S=value>' found.")
 
 # Extract information about the SNPs and convert variable names into a more human-readable format
 def extract_site_info(df_vcf: pd.DataFrame) -> pd.DataFrame:
@@ -63,7 +77,7 @@ def widening_bins(bin_width: float)-> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     return left_bins, right_bins, midpoints
 
 
-def analysis(df_vcf: pd.DataFrame, bin_width: float)->pd.DataFrame:
+def analysis(df_vcf: pd.DataFrame, bin_width: float, expected_ratios: dict)->pd.DataFrame:
     sites_df = extract_site_info(df_vcf)
     population_indicator, haplotypes = extract_haplotypes(df_vcf)
     # Exclude non-variable sites
@@ -93,12 +107,18 @@ def analysis(df_vcf: pd.DataFrame, bin_width: float)->pd.DataFrame:
         res["Synonymous"].append((masked_df["classification"] == "Synonymous").sum())
         res["Non-synonymous"].append((masked_df["classification"] == "Non-synonymous").sum())
         res["Deleterious"].append((masked_df["mut_type"] == "Deleterious").sum())
-    return pd.DataFrame(res)
+    df = pd.DataFrame(res)
+    df["expected_dNdS"] = expected_ratios["N/S"]
+    df["expected_dDdS"] = expected_ratios["D/S"]
+    df["dNdS"] = (df["Non-synonymous"] / df["Synonymous"]) / expected_ratios["N/S"]
+    df["dDdS"] = (df["Deleterious"] / df["Synonymous"]) / expected_ratios["D/S"]
+    return df
 
 def main(infile: str)-> None:
     df_vcf = read_vcf(infile)
+    expected_ratios = extract_expected_ratios(infile)
     bin_width = 0.1
-    res = analysis(df_vcf, bin_width)
+    res = analysis(df_vcf, bin_width, expected_ratios)
     res.to_csv("/dev/stdout", index=False)
 
 if __name__ == "__main__":

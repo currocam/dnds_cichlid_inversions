@@ -28,7 +28,7 @@ process slim {
     // The tag should be the seed. For that, we need to parse the seed from the command
     // slim ... -s 1234 ...
     tag "s${command.split('-s ')[1].split(' ')[0]}"
-    time '30min'
+    time '20min'
     errorStrategy 'ignore'
     fair true // Maintain the order of different simulations
     input:

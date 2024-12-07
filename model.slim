@@ -1,13 +1,16 @@
 initialize() {
-	initializeSLiMModelType("nonWF");
-	// *Set up genetics*
-	// Mutation types
+	// Set up genetics
+	initializeRecombinationRate(1e-8);
+	initializeMutationRate(1e-8);
 	initializeMutationType("m1", 0.5, "f", 0.0); // non-coding
 	initializeMutationType("m2", 0.5, "f", 0.0); // synonymous
 	c(m1, m2).convertToSubstitution = T;
 	initializeMutationType("m3", 0.5, "f", 0.0); // non-synonymous (and deleterious)
 	m3.color="red";
-	// non-synonymous (and conditionally adaptive
+	// non-synonymous (and conditionally adaptive)
+	// Number of such sites in inverted haplotype
+	defineConstantIfInteractive("TARGET_X", 100);
+	defineConstantIfInteractive("C_ABS_EFFECT", 0.5 / 2 / TARGET_X);
 	initializeMutationType("m4", 0.5, "f", 0.0);
 	m4.color="green";
 	c(m3, m4).convertToSubstitution = F;
@@ -15,12 +18,11 @@ initialize() {
 	// and deleterious mutations such that
 	// f(X, Y, p1) = (1 - s_D)^Y * ( 1 - s_C1)^X * (1 - \epsilon1)^(X(1-X)/2)
 	// f(X, Y, p2) = (1 - s_D)^Y * ( 1 + s_C2)^X * (1 + \epsilon2)^(X(1-X)/2)
-	defineConstantIfNotThere("TARGET_X", 25);
-	defineConstantIfNotThere("s_D", 0.001);
-	defineConstantIfNotThere("s_C1", 0.001);
-	defineConstantIfNotThere("s_C2", 0.01);
-	defineConstantIfNotThere("epsilon1", -0.001);
-	defineConstantIfNotThere("epsilon2", 0.001);
+	defineConstantIfInteractive("s_D", 0.001);
+	defineConstantIfInteractive("s_C1", 0.005);
+	defineConstantIfInteractive("s_C2", 0.001);
+	defineConstantIfInteractive("epsilon1", 0.0);
+	defineConstantIfInteractive("epsilon2", 2 / 2 / TARGET_X);
 	// We simulate a random chromosome structure with exons, introns and non-coding regions
 	// We consider introns to be evolving strictly neutral
 	// (so they are modelled as non-coding regions)
@@ -29,24 +31,15 @@ initialize() {
 	// Proportions were chosen so we would expect 30.9% of synonymous 
 	// and 69.1% of nonsynonymous substitutions to happen under purely
 	// neutral evolution (Pond, Frost, and Muse 2005)
-	defineConstantIfNotThere("FRACTION_S", 0.309);
-	defineConstantIfNotThere("FRACTION_D", 0.600);
-	defineConstantIfNotThere("FRACTION_C", 0.091);
-	assert((FRACTION_S+FRACTION_D+FRACTION_C) - 1.0 < 1e-6);
-	initializeGenomicElementType("g2", c(m2, m3, m4), c(FRACTION_S, FRACTION_D, FRACTION_C));
+	initializeGenomicElementType("g2", c(m2, m3, m4), c(0.309, 0.600, 0.091));
 	// Now, we define the inversion location
-	defineConstantIfNotThere("L", 11e6);
-	defineConstantIfNotThere("INV_LENGTH", 1e7);
-	defineConstantIfNotThere("INV_START", asInteger(L/2 - INV_LENGTH/2));
-	defineConstantIfNotThere("INV_END", INV_START + INV_LENGTH - 1);
+	defineConstantIfInteractive("L", 3e7);
+	defineConstantIfInteractive("INV_LENGTH", 1e7);
+	defineConstant("INV_START", asInteger(L/2 - INV_LENGTH/2));
+	defineConstant("INV_END", INV_START + INV_LENGTH - 1);
 	// Set up chromosome structure
-	// Recombination
-	defineConstantIfNotThere("SCALING", 5); // Linear scaling factor
-	defineConstantIfNotThere("RHO", 1e-8); // Recombination rate
-	defineConstantIfNotThere("MU", 1e-8); // Number of chromosomes
-	initializeRecombinationRate(0.5*(1-(1-2*RHO)^SCALING));
 	setUpChromosome(L);
-	// We'll keep track of the inversion with some special mutations
+	// We'll keep track of the recombination with some special mutations
 	initializeMutationType("m5", 0.5, "f", 0.0); // start-inversion
 	initializeMutationType("m6", 0.5, "f", 0.0); // end-inversion
 	c(m5, m6).convertToSubstitution = F;
@@ -54,23 +47,19 @@ initialize() {
 	// Demographic history
 	// We simulate two populations of constant size N1 and N2 
 	// and symmetric migration rate m
-	defineConstantIfNotThere("K1", 2000);
-	defineConstantIfNotThere("K2", 2000);
-	defineConstantIfNotThere("MIGRATION", 0.01);
+	defineConstantIfInteractive("N1", 1000);
+	defineConstantIfInteractive("N2", 1000);
+	defineConstantIfInteractive("INIT_N2", 50);
+	defineConstantIfInteractive("ALPHA", 0.05);
+	defineConstantIfInteractive("MIGRATION", 0.005);
 	// Other parameters
-	defineConstantIfNotThere("BURNIN", 200);
-	defineConstantIfNotThere("RUNTIME", 10000);
-	defineConstantIfNotThere("LOGGING", 1);
+	defineConstantIfInteractive("BURNIN", 500);
+	defineConstantIfInteractive("RUNTIME", 10000);
+	defineConstantIfInteractive("LOGGING", 1);
 }
 // We handle fitness manually
 mutationEffect(m3) { return 1.0; }
 mutationEffect(m4) { return 1.0; }
-
-reproduction() {
-	n_offspring = rpois(1, 10);
-	if (n_offspring>0)
-		subpop.addCrossed(individual, subpop.sampleIndividuals(1), count=n_offspring);
-}
 
 // Before burnin, no adaptive mutation can arise
 1:BURNIN mutation(m4) {
@@ -78,15 +67,6 @@ reproduction() {
 	mut.setMutationType(m3);
 	return mut;
 }
-
-modifyChild() {
-	if (child.genome1.countOfMutationsOfType(m4)>TARGET_X)
-		return F;
-	if (child.genome2.countOfMutationsOfType(m4)>TARGET_X)
-		return F;
-	return T;
-}
-
 
 // After the establishment of the desired haplotype
 // no adaptive mutations can arise
@@ -101,16 +81,19 @@ T1+1: mutation(m4) {
 1 early() {
 	// save this run's identifier, used to save and restore
 	defineConstant("simID", getSeed());
-	sim.addSubpop("p1", asInteger(K1));
-	sim.addSubpop("p2", 0);
+	sim.addSubpop("p1", N1);
+	sim.addSubpop("p2", INIT_N2);
+	p2.setMigrationRates(p1, MIGRATION); // p1 -> p2
+	p1.setMigrationRates(p2, MIGRATION); // p2 -> p1
 	// Logging
 	if (LOGGING == 0)
 	{
 		log = community.createLogFile("/dev/stderr", logInterval=500);
 		log.addCycle();
-		log.addCustomColumn("Pop1", "p1.individualCount;");
-		log.addCustomColumn("Pop2", "p2.individualCount;");
-		log.addCustomColumn("Maximum count m4", "maxNumberHaplotype(m4);");
+		log.addCustomColumn("N1", "p1.individualCount;");
+		log.addCustomColumn("N2", "p2.individualCount;");
+		log.addCustomColumn("FST", "calcFST(p1.genomes, p2.genomes);");
+		
 		log.addCustomColumn(
 			"Frequency inversion P1",
 			"mean(p1.individuals.countOfMutationsOfType(m5));"
@@ -122,65 +105,31 @@ T1+1: mutation(m4) {
 	}
 }
 
-1: early() {
-	// Migration
-	if (MIGRATION>0)
-	{
-		migrants = p1.sampleIndividuals(
-			rpois(1, p1.individualCount*MIGRATION)
-			);
-		if (migrants.size()>0)
-			p2.takeMigrants(migrants);
-		// Migration from p2 to p1:
-		if (p2.individualCount>0)
-		{
-			migrants = p2.sampleIndividuals(
-				rpois(1, p2.individualCount*MIGRATION)
-				);
-			if (migrants.size()>0)
-				p1.takeMigrants(migrants);
-		
-		}
-	}
-	// non-overlapping generations
-	inds = sim.subpopulations.individuals;
-	inds[inds.age > 0].fitnessScaling = 0.0;
+1: late() {
 	// Population 1 (original)
 	inds = p1.individuals;
-	inds = inds[inds.age == 0];
 	Y = inds.countOfMutationsOfType(m3);
 	X = inds.countOfMutationsOfType(m4);
 	inds.fitnessScaling = (1-s_D)^Y * ( 1 - s_C1)^X * (1-epsilon1)^(X*(1-X)/2);
-	p1.fitnessScaling = K1 / inds.size();
 	
 	// Population 2 (derived)
 	inds = p2.individuals;
-	inds = inds[inds.age == 0];
 	Y = inds.countOfMutationsOfType(m3);
 	X = inds.countOfMutationsOfType(m4);
-	//inds.fitnessScaling = (1-s_D)^Y * ( 1 + s_C2)^(X-TARGET_X*2) * (1-epsilon2)^(X*(1-X)/2-TARGET_X*2*(1-TARGET_X*2)/2);
 	inds.fitnessScaling = (1-s_D)^Y * ( 1 + s_C2)^X * (1-epsilon2)^(X*(1-X)/2);
-	// We scale the fitness such that p2 reaches 
-	// its carrying capacity when optimal haplotype
-	p2.fitnessScaling = K2 / (
-		inds.size() *  (1 + s_C2)^(TARGET_X*2) * (1-epsilon2)^(TARGET_X*2*(1-TARGET_X*2)/2)
-		);
 }
 
-2: first() {
+2: late() {
 	// Check if an individual from p2 has the desired number of adaptive alleles
-	inds = sim.subpopulations.individuals;
+	inds = p2.individuals;
 	inds.tagL0 = inds.genome1.countOfMutationsOfType(m4) == TARGET_X;
 	inds.tagL1 = inds.genome2.countOfMutationsOfType(m4) == TARGET_X;
 	candidates = c(
-		p1.sampleIndividuals(1, tagL0=T),
-		p1.sampleIndividuals(1, tagL1=T),
 		p2.sampleIndividuals(1, tagL0=T),
 		p2.sampleIndividuals(1, tagL1=T)
 		);
 	if (candidates.size()>0)
 	{
-		defineConstant("T1", sim.cycle);
 		// save the state of the simulation
 		sim.outputFull(tempdir() + "slim_" + simID + ".txt");
 		
@@ -192,15 +141,26 @@ T1+1: mutation(m4) {
 			);
 		inverted.addNewDrawnMutation(m5, INV_START);
 		inverted.addNewDrawnMutation(m6, INV_END);
-		catn("#T1: " + T1, error=T);
-		p2.takeMigrants(founder);
 		community.deregisterScriptBlock(self);
+		defineConstant("T1", sim.cycle);
+		catn("#T1: " + T1, error=T);
 	}
 }
 
-T1+1 : first() {
-	// Every 10 ticks, check if inversion have been lost
-	if (sim.cycle % 10 == 0)
+T1+1 : early() {
+	// Exponential growth of derived population
+	newSize = asInteger(INIT_N2 * exp(ALPHA*(sim.cycle-T1)));
+	if (newSize>N2)
+	{
+		newSize = N2;
+		community.deregisterScriptBlock(self);
+	}
+	p2.setSubpopulationSize(newSize);
+}
+
+T1+1 : late() {
+	// Every 100 ticks, check if inversion have been lost
+	if (sim.cycle % 100 == 0)
 	{
 		// Sanity check
 		inv_start = sim.subpopulations.individuals.countOfMutationsOfType(m5);
@@ -210,18 +170,16 @@ T1+1 : first() {
 		// Check if inversion was lost
 		if (sum(inv_start)== 0)
 		{
-			catn("#Inversion was lost after less than " + (sim.cycle-T1) + " generations!", error=T);
+			catn("#Inversion was lost after " + (sim.cycle-T1) + " generations!", error=T);
 			// Go back to T1
 			sim.readFromPopulationFile(tempdir() + "slim_" + simID + ".txt");
 			// start a newly seeded run
 			setSeed(rdunif(1, 0, asInteger(2^62) - 1));
 			// re-introduce the inversion
-			inds = sim.subpopulations.individuals;
+			inds = p2.individuals;
 			inds.tagL0 = inds.genome1.countOfMutationsOfType(m4) == TARGET_X;
 			inds.tagL1 = inds.genome2.countOfMutationsOfType(m4) == TARGET_X;
 			candidates = c(
-				p1.sampleIndividuals(1, tagL0=T),
-				p1.sampleIndividuals(1, tagL1=T),
 				p2.sampleIndividuals(1, tagL0=T),
 				p2.sampleIndividuals(1, tagL1=T)
 				);
@@ -238,12 +196,24 @@ T1+1 : first() {
 }
 
 RUNTIME late() {
-	assert(exists("T1"));
+    // Check that haplotype appeared before max runtime is reached
+    assert(exists("T1"));
+    // Check that inversion is predominnant in p2 but rare in p2
+    assert(mean(p1.individuals.countOfMutationsOfType(m5)) < 0.2);
+    assert(mean(p2.individuals.countOfMutationsOfType(m5)) > 1.8);
+    // We calculate the expected ratio Non-synonymous / Synonymous
+    // and Deleterious / Synonymous mutations
+    ns = (FRACTION_D+FRACTION_C) / FRACTION_S;
+    // We have to take into account that the expected number of D is lower
+    // due to the fraction of time where conditionally adaptive 
+    // mutations take place
+    ds = (T1 - BURNIN) / RUNTIME * FRACTION_D / FRACTION_S + (RUNTIME - (T1 - BURNIN)) / RUNTIME * ns;
+    catn("##<N/S="+ns+",D/S="+ds+">");
 	genomes = c(
 		p1.sampleIndividuals(100).genomes,
 		p2.sampleIndividuals(100).genomes
 		);
-	genomes.outputVCF(filePath="/dev/stdout");
+	genomes.outputVCF(filePath="/dev/stdout", append=T);
 
 }
 
@@ -279,38 +249,24 @@ recombination() {
 // bases chromosome
 function (void)setUpChromosome(integer$ size) {
 	initializeGenomicElement(g1, 0, INV_START);
-	rates = c(0.0);
-	ends = c(INV_START);
 	base = INV_START+1;
 	while (base < INV_END) {
 		// make a non-coding region
 		nc_length = rdunif(1, 100, 5000);
 		initializeGenomicElement(g1, base, base + nc_length - 1);
-		rates = c(rates, 0.0);
-		ends = c(ends, base + nc_length - 1);
-		
 		base = base + nc_length;
 		// make first exon
 		ex_length = asInteger(rlnorm(1, log(50), log(2))) + 1;
 		initializeGenomicElement(g2, base, base + ex_length - 1);
-		rates = c(rates, MU*SCALING);
-		ends = c(ends, base + ex_length - 1);
-		
 		base = base + ex_length;
 		// make additional intron-exon pairs
 		do
 		{
 			in_length = asInteger(rlnorm(1, log(100), log(1.5))) + 10;
 			initializeGenomicElement(g1, base, base + in_length - 1);
-			rates = c(rates, 0.0);
-			ends = c(ends, base + in_length - 1);
-			
 			base = base + in_length;
 			ex_length = asInteger(rlnorm(1, log(50), log(2))) + 1;
 			initializeGenomicElement(g2, base, base + ex_length - 1);
-			rates = c(rates,  MU*SCALING);
-			ends = c(ends, base + ex_length - 1);
-			
 			base = base + ex_length;
 		}
 		while (runif(1) < 0.8);
@@ -318,23 +274,9 @@ function (void)setUpChromosome(integer$ size) {
 	}
 	// final non-coding region
 	initializeGenomicElement(g1, base, size);
-	rates = c(rates, 0.0);
-	ends = c(ends, size);
-	initializeMutationRate(rates, ends);
-
 }
 
-// Helper function for debugging
-function (integer)maxNumberHaplotype(o<MutationType>$ mutType) {
-	genomes1 = sim.subpopulations.individuals.genome1;
-	genomes2 = sim.subpopulations.individuals.genome2;
-	return max(c(
-		max(genomes1.countOfMutationsOfType(mutType)),
-		max(genomes2.countOfMutationsOfType(mutType))
-		));
-}
-
-function (void)defineConstantIfNotThere(string$ symbol, * value) {
-	if (!exists(symbol))
+function (void)defineConstantIfInteractive(string$ symbol, * value) {
+	if (exists("slimgui"))
 		defineConstant(symbol, value);
 }
