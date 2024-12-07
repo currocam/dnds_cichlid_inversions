@@ -30,7 +30,6 @@ process slim {
     tag "s${command.split('-s ')[1].split(' ')[0]}"
     time '20min'
     errorStrategy 'ignore'
-    fair true // Maintain the order of different simulations
     input:
     tuple path(source), val(command)
     output:
@@ -44,7 +43,6 @@ process slim {
 
 process analysis {
     tag "${vcf.baseName}"
-    fair true // Maintain the order of different simulations
     input:
     path vcf
     output:
