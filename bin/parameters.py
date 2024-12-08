@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 def main():
     rng = np.random.default_rng(1000)
-    num_replicates = 10
+    num_replicates = 1000
     # Genetic architecture scenario
     # Mutation rate (unscaled)
     mu = np.repeat(1e-7, num_replicates)

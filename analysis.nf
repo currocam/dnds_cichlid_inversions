@@ -28,7 +28,7 @@ process slim {
     // The tag should be the seed. For that, we need to parse the seed from the command
     // slim ... -s 1234 ...
     tag "s${command.split('-s ')[1].split(' ')[0]}"
-    time '20min'
+    time '200min'
     errorStrategy 'ignore'
     input:
     tuple path(source), val(command)
@@ -43,6 +43,7 @@ process slim {
 
 process analysis {
     tag "${vcf.baseName}"
+    errorStrategy 'ignore'
     input:
     path vcf
     output:

@@ -1,4 +1,19 @@
-files: []
+files:
+- path: results/simulations.csv
+  tracked: false
+  md5: 41a8ee91804106b94f15bd1f393e056d
+  size: 5775674
+  url: null
+- path: results/parameters.csv
+  tracked: false
+  md5: e624d963b4f173b3057af9b90c54d7e1
+  size: 233253
+  url: null
+- path: results/figure.pdf
+  tracked: false
+  md5: bea664315c9883970c2db3f70e78f962
+  size: 13824
+  url: null
 remotes: {}
 metadata:
   title: null
