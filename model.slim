@@ -31,9 +31,11 @@ initialize() {
 	// Proportions were chosen so we would expect 30.9% of synonymous 
 	// and 69.1% of nonsynonymous substitutions to happen under purely
 	// neutral evolution (Pond, Frost, and Muse 2005)
-	initializeGenomicElementType("g2", c(m2, m3, m4), c(0.309, 0.600, 0.091));
+	defineConstantIfInteractive("FRACTION_S", 0.309);
+	defineConstantIfInteractive("FRACTION_N", 1-FRACTION_S);
+	initializeGenomicElementType("g2", c(m2, m3), c(FRACTION_S, FRACTION_N));
 	// Now, we define the inversion location
-	defineConstantIfInteractive("L", 3e7);
+	defineConstantIfInteractive("L", 11e6);
 	defineConstantIfInteractive("INV_LENGTH", 1e7);
 	defineConstant("INV_START", asInteger(L/2 - INV_LENGTH/2));
 	defineConstant("INV_END", INV_START + INV_LENGTH - 1);
@@ -54,7 +56,9 @@ initialize() {
 	defineConstantIfInteractive("MIGRATION", 0.005);
 	// Other parameters
 	defineConstantIfInteractive("BURNIN", 500);
+	defineConstant("T1", BURNIN+1);
 	defineConstantIfInteractive("RUNTIME", 10000);
+	defineConstantIfInteractive("WAITING", 100);
 	defineConstantIfInteractive("LOGGING", 1);
 }
 // We handle fitness manually
@@ -88,12 +92,13 @@ T1+1: mutation(m4) {
 	// Logging
 	if (LOGGING == 0)
 	{
-		log = community.createLogFile("/dev/stderr", logInterval=500);
+		defineConstant("log", community.createLogFile("/dev/stderr", logInterval=500));
 		log.addCycle();
 		log.addCustomColumn("N1", "p1.individualCount;");
 		log.addCustomColumn("N2", "p2.individualCount;");
 		log.addCustomColumn("FST", "calcFST(p1.genomes, p2.genomes);");
-		
+		log.addCustomColumn("MAX X", "max(sim.subpopulations.individuals.genomes.countOfMutationsOfType(m4));");
+		log.addCustomColumn("Correlation", "cor(sim.subpopulations.individuals.countOfMutationsOfType(m4), sim.subpopulations.individuals.countOfMutationsOfType(m5));");
 		log.addCustomColumn(
 			"Frequency inversion P1",
 			"mean(p1.individuals.countOfMutationsOfType(m5));"
@@ -119,32 +124,16 @@ T1+1: mutation(m4) {
 	inds.fitnessScaling = (1-s_D)^Y * ( 1 + s_C2)^X * (1-epsilon2)^(X*(1-X)/2);
 }
 
-2: late() {
-	// Check if an individual from p2 has the desired number of adaptive alleles
-	inds = p2.individuals;
-	inds.tagL0 = inds.genome1.countOfMutationsOfType(m4) == TARGET_X;
-	inds.tagL1 = inds.genome2.countOfMutationsOfType(m4) == TARGET_X;
-	candidates = c(
-		p2.sampleIndividuals(1, tagL0=T),
-		p2.sampleIndividuals(1, tagL1=T)
-		);
-	if (candidates.size()>0)
-	{
-		// save the state of the simulation
-		sim.outputFull(tempdir() + "slim_" + simID + ".txt");
-		
-		founder = sample(candidates, 1);
-		inverted = ifelse(
-			founder.genome1.countOfMutationsOfType(m4) == TARGET_X,
-			founder.genome1,
-			founder.genome2
-			);
-		inverted.addNewDrawnMutation(m5, INV_START);
-		inverted.addNewDrawnMutation(m6, INV_END);
-		community.deregisterScriptBlock(self);
-		defineConstant("T1", sim.cycle);
-		catn("#T1: " + T1, error=T);
-	}
+T1 late() {
+	// Sample 1 individual and assign add the mutations
+	// save the state of the simulation
+	sim.outputFull(tempdir() + "slim_" + simID + ".txt");
+	founder = p2.sampleIndividuals(1);
+	inverted = founder.genome1;
+	inverted.addNewDrawnMutation(m4, drawWithinExons(TARGET_X));
+	inverted.addNewDrawnMutation(m5, INV_START);
+	inverted.addNewDrawnMutation(m6, INV_END);
+	community.deregisterScriptBlock(self);
 }
 
 T1+1 : early() {
@@ -176,45 +165,43 @@ T1+1 : late() {
 			// start a newly seeded run
 			setSeed(rdunif(1, 0, asInteger(2^62) - 1));
 			// re-introduce the inversion
-			inds = p2.individuals;
-			inds.tagL0 = inds.genome1.countOfMutationsOfType(m4) == TARGET_X;
-			inds.tagL1 = inds.genome2.countOfMutationsOfType(m4) == TARGET_X;
-			candidates = c(
-				p2.sampleIndividuals(1, tagL0=T),
-				p2.sampleIndividuals(1, tagL1=T)
-				);
-			founder = sample(candidates, 1);
-			inverted = ifelse(
-				founder.genome1.countOfMutationsOfType(m4) == TARGET_X,
-				founder.genome1,
-				founder.genome2
-				);
+			founder = p2.sampleIndividuals(1);
+			inverted = founder.genome1;
+			inverted.addNewDrawnMutation(m4, drawWithinExons(TARGET_X));
 			inverted.addNewDrawnMutation(m5, INV_START);
 			inverted.addNewDrawnMutation(m6, INV_END);
+		
 		}
 	}
 }
 
-RUNTIME late() {
-    // Check that haplotype appeared before max runtime is reached
-    assert(exists("T1"));
-    // Check that inversion is predominnant in p2 but rare in p2
-    assert(mean(p1.individuals.countOfMutationsOfType(m5)) < 0.2);
-    assert(mean(p2.individuals.countOfMutationsOfType(m5)) > 1.8);
-    // We calculate the expected ratio Non-synonymous / Synonymous
-    // and Deleterious / Synonymous mutations
-    ns = (FRACTION_D+FRACTION_C) / FRACTION_S;
-    // We have to take into account that the expected number of D is lower
-    // due to the fraction of time where conditionally adaptive 
-    // mutations take place
-    ds = (T1 - BURNIN) / RUNTIME * FRACTION_D / FRACTION_S + (RUNTIME - (T1 - BURNIN)) / RUNTIME * ns;
-    catn("##<N/S="+ns+",D/S="+ds+">");
+T1+1: late() {
+	// Check if inversion is predominant in derived population
+	if ((mean(p1.individuals.countOfMutationsOfType(m5))<0.3) & (mean(p2.individuals.countOfMutationsOfType(m5))>1.7))
+	{
+		defineConstant("T_END", sim.cycle+WAITING);
+		catn("#T_end: " + T_END, error=T);
+		community.deregisterScriptBlock(self);
+	}
+}
+
+T_END late() {
+	// We calculate the expected ratio Non-synonymous / Synonymous
+	// and Deleterious / Synonymous mutations
+	ns = FRACTION_N / FRACTION_S;
+	catn("##<N/S="+ns+",D/S="+ns+">");
+	catn("##<T1="+T1+">");
 	genomes = c(
 		p1.sampleIndividuals(100).genomes,
 		p2.sampleIndividuals(100).genomes
 		);
 	genomes.outputVCF(filePath="/dev/stdout", append=T);
+	sim.simulationFinished();
+}
 
+
+RUNTIME late() {
+	stop("Max iteration reached!");
 }
 
 
@@ -244,7 +231,6 @@ recombination() {
 	}
 	return T;
 }
-
 // Generate random genes along an approximately L
 // bases chromosome
 function (void)setUpChromosome(integer$ size) {
@@ -262,10 +248,10 @@ function (void)setUpChromosome(integer$ size) {
 		// make additional intron-exon pairs
 		do
 		{
-			in_length = asInteger(rlnorm(1, log(100), log(1.5))) + 10;
+			in_length = asInteger(rlnorm(1, log(500), log(1.5))) + 10;
 			initializeGenomicElement(g1, base, base + in_length - 1);
 			base = base + in_length;
-			ex_length = asInteger(rlnorm(1, log(50), log(2))) + 1;
+			ex_length = asInteger(rlnorm(1, log(400), log(2.0))) + 1;
 			initializeGenomicElement(g2, base, base + ex_length - 1);
 			base = base + ex_length;
 		}
@@ -277,6 +263,16 @@ function (void)setUpChromosome(integer$ size) {
 }
 
 function (void)defineConstantIfInteractive(string$ symbol, * value) {
-	if (exists("slimgui"))
+	if (F)
 		defineConstant(symbol, value);
+}
+
+function (numeric)drawWithinExons(numeric$ size) {
+	elms = sim.chromosome.genomicElements;
+	elms = elms[elms.genomicElementType == g2];
+	chosen = sample(elms, size, replace=T);
+	res = c();
+	for (exon in chosen)
+		res = c(res, rdunif(1, exon.startPosition, exon.endPosition));
+	return res;
 }

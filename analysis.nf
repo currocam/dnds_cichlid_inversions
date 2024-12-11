@@ -2,13 +2,15 @@
 params.source = "model.slim"
 
 process hyperparameters {
-    publishDir "results", mode: 'copy'
+    publishDir "./", mode: 'copy', saveAs: {"${params.config.split(".yaml")[0]}_parameters.csv"}
+    input:
+    path config
     output:
     path "parameters.csv"
 
     script:
     """
-    parameters.py > parameters.csv
+    parameters.py $config > parameters.csv
     """
 }
 
@@ -28,7 +30,7 @@ process slim {
     // The tag should be the seed. For that, we need to parse the seed from the command
     // slim ... -s 1234 ...
     tag "s${command.split('-s ')[1].split(' ')[0]}"
-    time '200min'
+    time '30min'
     errorStrategy 'ignore'
     input:
     tuple path(source), val(command)
@@ -37,7 +39,7 @@ process slim {
 
     script:
     """
-    $command < $source > s${command.split('-s ')[1].split(' ')[0]}.vcf
+    $command < $source > s${command.split('-s ')[1].split(' ')[0]}.vcf 2> s${command.split('-s ')[1].split(' ')[0]}.log
     """
 }
 
@@ -56,7 +58,7 @@ process analysis {
 }
 
 process combineSimulations {
-    publishDir "results", mode: 'copy'
+    publishDir "./", mode: 'copy', saveAs: {"${params.config.split(".yaml")[0]}_sims.csv"}
     output:
     input:
     path infiles
@@ -71,7 +73,7 @@ process combineSimulations {
 
 process plot {
     container 'rocker/tidyverse:latest'
-    publishDir "results", mode: 'copy'
+    publishDir "./", mode: 'copy', saveAs: {"${params.config.split(".yaml")[0]}.pdf"}
     input:
     path data
     output:
@@ -84,13 +86,14 @@ process plot {
 }
 
 workflow {
-    theta = hyperparameters()
+    config = file("${params.config}")
+    theta = hyperparameters(config)
     source = file("${params.source}")
     inputs = cli(theta)
          .splitText()
          .map {it -> [source, it.trim()]}
-    results = inputs | slim | analysis
+    output =  inputs | slim | analysis
     // First value is the theta, then the result of results
-    theta.mix(results) | collect | combineSimulations | plot
+    theta.mix(output) | collect | combineSimulations | plot
 }
 

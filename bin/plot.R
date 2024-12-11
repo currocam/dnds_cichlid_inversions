@@ -5,35 +5,13 @@ infile <- commands[1]
 outfile <- commands[2]
 data <- read_csv(infile)
 data |>
-  pivot_longer(c(`dNdS`, `dDdS`), names_to = "type", values_to = "value") |>
-  ggplot(aes(x = r_bin, y = value, color = type)) +
-  geom_boxplot(aes(group = interaction(r_bin, type)))+
+  ggplot(aes(x = r_bin, y = dNdS)) +
+  geom_smooth(aes(group = SEED), color = "grey", alpha = 0.1, size = 0.5)+
+  geom_boxplot(aes(group = r_bin), outlier.shape = NA)+
   geom_hline(yintercept = 1, linetype = "dashed")+
   theme_minimal()+
   xlab("Pearson correlation coefficient")+
-  ylab("Deviation from expected ratio")+
-  scale_color_manual(
-    name = "",
-    values = c("dNdS" = "firebrick", "dDdS" = "lightblue"),
-    labels = c("dNdS" = "Non-synonymous / Synonymous", "dDdS" = "Deleterious non-synonymous / Synonymous")
-    )+
-  theme(legend.position = "bottom")+
-  theme(plot.margin = margin(0, 0, 0, 0))+
-  scale_y_log10()
-
-data |>
-  pivot_longer(c(`dNdS`, `dDdS`), names_to = "type", values_to = "value") |>
-  ggplot(aes(x = r_bin, y = value, color = type)) +
-  geom_boxplot(aes(group = interaction(r_bin, type)))+
-  geom_hline(yintercept = 1, linetype = "dashed")+
-  theme_minimal()+
-  xlab("Pearson correlation coefficient")+
-  ylab("Deviation from expected ratio")+
-  scale_color_manual(
-    name = "",
-    values = c("dNdS" = "firebrick", "dDdS" = "lightblue"),
-    labels = c("dNdS" = "Non-synonymous / Synonymous", "dDdS" = "Deleterious non-synonymous / Synonymous")
-    )+
+  ylab("dN/dS")+
   theme(legend.position = "bottom")+
   theme(plot.margin = margin(0, 0, 0, 0))+
   scale_y_log10()

@@ -1,0 +1,41 @@
+# Random seed
+seed: 1000
+# Number of parameters to draw
+num_replicates: 20
+# Max number of generations after burnin
+max_runtime: 100000
+# Mutation rate (after 10-scaling factor)
+mu: 1e-7
+# Recombination rate (after 10-scaling factor)
+rho: 1e-7
+# Number of selected sites -> 2
+target_x_range: [2, 3]
+# Migration rate (fraction)
+migration_range: [0.001, 0.01]
+# Deleterious fixed fitness effects
+s_d_range: [0.001, 0.005]
+# Conditionally adaptive mutations fitness effect (in original)
+s_c1_range: [0.001, 0.005]
+# Conditionally adaptive mutations fitness effect (in derived)
+s_c2_range: [0.001, 0.005]
+# Un-scaled epsilon (mixture of uniforms). These values will be divided 
+# by the number of selected sites 
+epsilon1 : [[-1.5, -0.5]]
+epsilon2 : [[0.5, 1.5]]
+# Fraction of synonymous mutations
+fraction_s: 0.309
+# Fraction of non-synonymous mutations
+fraction_n: 0.691
+# Length of the inversion
+inv_length: 10000000
+# All that's not inverted
+inv_offset: 1000000
+# Population sizes (10000-50000 unscaled)
+n_range: [1000, 5000]
+# Initial fraction of derived population
+init_n2_range: [0.0, 0.2]
+# Exponential growth of derived population
+alpha_range: [0.05, 0.1]
+# How many generations after "fixation" wait
+waiting_time: 2000
+logging: 0

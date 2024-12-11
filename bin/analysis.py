@@ -101,7 +101,6 @@ def analysis(df_vcf: pd.DataFrame, bin_width: float, expected_ratios: dict)->pd.
     }
     for left, right, midpoint in zip(left_bins, right_bins, midpoints):
         mask = (sites_df["r"] > left) & (sites_df["r"] <= right)
-        sites_df.loc[mask, "bin"] = midpoint
         res["r_bin"].append(midpoint)
         masked_df = sites_df[mask]
         res["Synonymous"].append((masked_df["classification"] == "Synonymous").sum())
@@ -117,7 +116,7 @@ def analysis(df_vcf: pd.DataFrame, bin_width: float, expected_ratios: dict)->pd.
 def main(infile: str)-> None:
     df_vcf = read_vcf(infile)
     expected_ratios = extract_expected_ratios(infile)
-    bin_width = 0.1
+    bin_width = 0.05
     res = analysis(df_vcf, bin_width, expected_ratios)
     res.to_csv("/dev/stdout", index=False)
 

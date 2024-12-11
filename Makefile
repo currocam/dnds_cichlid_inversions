@@ -7,4 +7,5 @@ $(IMAGE): $(DEF_FILE)
 env : $(IMAGE)
 
 run: $(IMAGE) $(SCRIPT)
-	./$(SCRIPT) -qs 30 -resume -with-apptainer $(IMAGE)
+	./$(SCRIPT) -qs 40 -resume -with-apptainer $(IMAGE) --config=scenarios/low_x_scenario.yaml
+	./$(SCRIPT) -qs 40 -resume -with-apptainer $(IMAGE) --config=scenarios/high_x_scenario.yaml
