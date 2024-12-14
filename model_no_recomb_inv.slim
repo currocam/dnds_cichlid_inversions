@@ -207,7 +207,8 @@ RUNTIME late() {
 }
 
 
-// Handle inversion when it appears
+// Here, we simulate an extreme case where, simply, the whole
+// inverted haplotype does not recombine
 recombination() {
 	gm1 = genome1.containsMarkerMutation(m5, INV_START);
 	gm2 = genome2.containsMarkerMutation(m5, INV_START);
@@ -215,22 +216,7 @@ recombination() {
 		// homozygote non-inverted
 		return F;
 	}
-	inInv = (breakpoints > INV_START) & (breakpoints <= INV_END);
-	if (sum(inInv) % 2 == 0) {
-		return F;
-	}
-	if (gm1 & gm2) {
-		// homozygote inverted
-		left = (breakpoints == INV_START);
-		right = (breakpoints == INV_END + 1);
-		breakpoints = sort(c(breakpoints[!(left | right)],
-			c(INV_START, INV_END + 1)[c(sum(left) == 0, sum(right) == 0)]));
-		return T;
-	} else {
-		// heterozygote inverted: resample to get an even # of breakpoints
-		// this is *recursive*: it calls this recombination callback again!
-		breakpoints = sim.chromosome.drawBreakpoints(individual);
-	}
+    breakpoints = integer(0);
 	return T;
 }
 // Generate random genes along an approximately L
