@@ -30,30 +30,30 @@ process slim {
     // The tag should be the seed. For that, we need to parse the seed from the command
     // slim ... -s 1234 ...
     tag "s${command.split('-s ')[1].split(' ')[0]}"
-    time '30min'
+    time '40min'
     errorStrategy 'ignore'
     input:
     tuple path(source), val(command)
-    output:
-    path "*.vcf"
-
-    script:
-    """
-    $command < $source > s${command.split('-s ')[1].split(' ')[0]}.vcf 2> s${command.split('-s ')[1].split(' ')[0]}.log
-    """
-}
-
-process analysis {
-    tag "${vcf.baseName}"
-    errorStrategy 'ignore'
-    input:
-    path vcf
     output:
     path "*.csv"
 
     script:
     """
-    analysis.py $vcf > ${vcf.baseName}.csv
+    $command < $source > s${command.split('-s ')[1].split(' ')[0]}.csv 2> s${command.split('-s ')[1].split(' ')[0]}.log
+    """
+}
+
+process analysis {
+    tag "${input.baseName}"
+    errorStrategy 'ignore'
+    input:
+    path input
+    output:
+    path "*_bin.csv"
+
+    script:
+    """
+    analysis.py $input > ${input.baseName}_bin.csv
     """
 }
 

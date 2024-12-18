@@ -6,6 +6,19 @@ import pandas as pd
 import numpy as np
 import yaml, sys
 
+def process_input(rng, value, size):
+    if isinstance(value, (str)):
+        value = float(value)
+    if isinstance(value, (int, float)):
+        # Repeat the number 'size' times
+        return np.repeat(value, size)
+    elif isinstance(value, list) and len(value) == 2:
+        # Draw 'size' samples from a uniform distribution
+        low, high = value
+        return rng.uniform(low, high, size)
+    else:
+        raise ValueError("Input must be a single number or a list of two numbers.")
+
 def main(infile):
     # Load constants from a YAML file
     with open(infile, "r") as file:
@@ -13,30 +26,29 @@ def main(infile):
     
     rng = np.random.default_rng(constants["seed"])
     num_replicates = constants["num_replicates"]
+    process = lambda x : process_input(rng, x, num_replicates)
 
     # Load parameters from the YAML file
-    mu = np.repeat(constants["mu"], num_replicates)
-    rho = np.repeat(constants["rho"], num_replicates)
-    target_x = rng.uniform(*constants["target_x_range"], size=num_replicates).astype(int)
-    migration = rng.uniform(*constants["migration_range"], size=num_replicates)
-    s_d = rng.uniform(*constants["s_d_range"], size=num_replicates)
-    s_c1 = rng.uniform(*constants["s_c1_range"], size=num_replicates)
-    s_c2 = rng.uniform(*constants["s_c2_range"], size=num_replicates)
-    epsilon1 = [rng.uniform(*x, size=num_replicates) if len(x) > 1 else np.repeat(x, num_replicates) for x in constants["epsilon1"]]
-    epsilon1 = [np.random.choice(x) for x in np.array(epsilon1).T] / target_x
-    epsilon2 = [rng.uniform(*x, size=num_replicates) if len(x) > 1 else np.repeat(x, num_replicates) for x in constants["epsilon2"]] / target_x
-    epsilon2 = [np.random.choice(x) for x in np.array(epsilon2).T]
-    fraction_s = np.repeat(constants["fraction_s"], num_replicates)
-    fraction_n = np.repeat(constants["fraction_n"], num_replicates)
-    inv_length = np.repeat(constants["inv_length"], num_replicates).astype(int)
+    mu = process(constants["mu"])
+    rho = process(constants["rho"])
+    target_x = process(constants["target_x"]).astype(int)
+    migration = process(constants["migration_range"])
+    s_d = process(constants["s_d"])
+    s_c1 = process(constants["s_c1"])
+    s_c2 = process(constants["s_c2"])
+    epsilon1 = process(constants["epsilon1"])
+    epsilon2 = process(constants["epsilon2"])
+    fraction_s = process(constants["fraction_s"])
+    fraction_n =  process(constants["fraction_n"])
+    inv_length = process(constants["inv_length"]).astype(int)
     L = (inv_length + constants["inv_offset"]).astype(int)
-    N1 = N2 = rng.uniform(*constants["n_range"], size=num_replicates).astype(int)
-    init_n2 = (N2 * rng.uniform(*constants["init_n2_range"], size=num_replicates)).astype(int)
-    alpha = rng.uniform(*constants["alpha_range"], size=num_replicates)
+    N1 = N2 = process(constants["n_range"]).astype(int)
+    init_n2 = (N2 * process(constants["init_n2_range"])).astype(int)
+    alpha =process(constants["alpha_range"])
     burnin = (4 * N1).astype(int)
-    max_runtime = (burnin + constants["max_runtime"]).astype(int)
-    waiting_time = np.repeat(constants["waiting_time"], num_replicates)
-    logging = np.repeat(constants["logging"], num_replicates)
+    max_runtime = (burnin + process(constants["max_runtime"])).astype(int)
+    waiting_time = (N2 * process(constants["waiting_time"])).astype(int)
+    logging = process(constants["logging"])
 
     # Create CSV with hyperparameters
     data = {

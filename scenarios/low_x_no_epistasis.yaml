@@ -3,27 +3,26 @@
 # Random seed
 seed: 1000
 # Number of parameters to draw
-num_replicates: 500 
+num_replicates: 50
 # Max number of generations after burnin
-max_runtime: 100000
+max_runtime: 40000
 # Mutation rate
 mu: 1e-8
 # Recombination rate
 rho: 1e-8
 # Number of selected sites -> 2
-target_x_range: [2, 2.1]
+target_x: 2
 # Migration rate (fraction)
 migration_range: [0.001, 0.01]
-# Deleterious fixed fitness effects
-s_d_range: [0.001, 0.005]
-# Conditionally adaptive mutations fitness effect (in original)
-s_c1_range: [0.001, 0.005]
-# Conditionally adaptive mutations fitness effect (in derived)
-s_c2_range: [0.001, 0.005]
-# Un-scaled epsilon (mixture of uniforms). These values will be divided 
-# by the number of selected sites 
-epsilon1 : [[-1.5, -0.5]]
-epsilon2 : [[0.5, 1.5]]
+# Absolute deleterious fixed fitness effects
+s_d: 0.001
+# Absolute conditionally adaptive mutations fitness effect (in original)
+s_c1: 0.12992
+# Absolute conditionally adaptive mutations fitness effect (in derived)
+s_c2: 0.12992
+# Absolute epistasis term
+epsilon1 : 0.0
+epsilon2 : 0.0
 # Fraction of synonymous mutations
 fraction_s: 0.309
 # Fraction of non-synonymous mutations
@@ -33,11 +32,11 @@ inv_length: 10000000
 # All that's not inverted
 inv_offset: 1000000
 # Population sizes
-n_range: [1000, 5000]
+n_range: [5000, 5001]
 # Initial fraction of derived population
-init_n2_range: [0.0, 0.2]
+init_n2_range: [0.01, 0.2]
 # Exponential growth of derived population
-alpha_range: [0.05, 0.1]
-# How many generations after "fixation" wait
-waiting_time: 500
+alpha_range: [0.01, 0.05]
+# How many generations after "fixation" we wait (fraction of Ne)
+waiting_time: 0.4
 logging: 0

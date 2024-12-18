@@ -1,0 +1,42 @@
+# This config file is repeated to produce different output
+# based on two models
+# Random seed
+seed: 1000
+# Number of parameters to draw
+num_replicates: 50
+# Max number of generations after burnin
+max_runtime: 40000
+# Mutation rate
+mu: 1e-8
+# Recombination rate
+rho: 1e-8
+# Number of selected sites -> 100
+target_x: 100
+# Migration rate (fraction)
+migration_range: [0.001, 0.01]
+# Absolute deleterious fixed fitness effects
+s_d: 0.001
+# Absolute conditionally adaptive mutations fitness effect (in original)
+s_c1: 0.00244589
+# Absolute conditionally adaptive mutations fitness effect (in derived)
+s_c2: 0.00244589
+# Absolute epistasis term
+epsilon1 : 0.0
+epsilon2 : 0.0
+# Fraction of synonymous mutations
+fraction_s: 0.309
+# Fraction of non-synonymous mutations
+fraction_n: 0.691
+# Length of the inversion
+inv_length: 10000000
+# All that's not inverted
+inv_offset: 1000000
+# Population sizes
+n_range: [5000, 5001]
+# Initial fraction of derived population
+init_n2_range: [0.01, 0.2]
+# Exponential growth of derived population
+alpha_range: [0.01, 0.05]
+# How many generations after "fixation" we wait (fraction of Ne)
+waiting_time: 0.4
+logging: 0

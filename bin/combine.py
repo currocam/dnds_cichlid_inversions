@@ -13,7 +13,7 @@ def main(params: str, results: str):
     for (theta, outfile) in zip(params.itertuples(), results):
         theta = theta[1:] # Skip the index
         # Check that the outfile has the format s{seed}.csv
-        m = re.match(r"s(\d+).csv", outfile)
+        m = re.match(r"s(\d+)_bin.csv", outfile)
         assert m is not None, f"Invalid filename {outfile}"
         seed = int(m.group(1))
         sim = pd.read_csv(outfile)
