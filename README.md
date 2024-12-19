@@ -13,16 +13,16 @@ apptainer --version
 make env
 ```
 
-You can execute the different analyses by executing `make` if you have Nextflow installed. 
+You can execute the different analyses by executing `make` if Nextflow is installed. 
 
 ```
 nextflow -version
-make env
+make
 ```
 
 ## Project structure
 
-The necessary scripts to (1) draw different combinations of parameters, (2) execute the SLiM model with the appropriate flags and (3) parse the resulting tables are located in the `bin` directory. Orchestrating the different processes is done with Nextflow scripts located at the root of the project. SLiM models are also located at the root of the project. 
+The necessary scripts to (1) draw different combinations of parameters, (2) execute the SLiM model with the appropriate flags and (3) parse the resulting tables are located in the `bin` directory. Orchestrating the different processes is done with Nextflow scripts located at the project's root. SLiM models are also located at the root of the project. 
 
 ## Parameters
 
