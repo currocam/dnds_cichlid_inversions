@@ -18,8 +18,8 @@ ggplot_text_size <- text_base_size / ggplot2::.pt
 
 # Load data
 infiles <- c(
-  "X = 100" = "~/Downloads/scenarios/high_x_sims.csv",
-  "X = 2" = "~/Downloads/scenarios/low_x_sims.csv"
+  "X = 100" = "../scenarios/high_x_sims.csv",
+  "X = 2" = "../scenarios/low_x_sims.csv"
 )
 
 data <- infiles |>
@@ -106,8 +106,73 @@ p2 <- data2 |>
   ggtitle("**B**")+
   theme(plot.title = ggtext::element_markdown())
 
-final <- p1 + p2
+# Strength of selection impact on inversion
 
+infiles <- c(
+  "X = 100" = "../scenarios/high_x_strength_sims.csv",
+  "X = 2" = "../scenarios/low_x_strength_sims.csv"
+)
+
+data3 <- infiles |>
+  map(read_csv) |>
+  bind_rows(.id = "scenario") |>
+  dplyr::filter(scenario %in% c("X = 100", "X = 2"))
+
+# Hard-coded number of simulations
+n_tries <- 150
+
+# Bootstrapped standard deviation
+boot_quantile <- function(n_succ, n_tries, quantile, nboot=1000){
+  x <- c(rep(1, n_succ), rep(0, n_tries - n_succ))
+  quantile(replicate(nboot, mean(sample(x, n_tries, replace = TRUE))), quantile)
+}
+p3 <- data3 |>
+  distinct(scenario, SEED, fitness_homozygous, fitness_heterozygous) |>
+  group_by(scenario, fitness_heterozygous, fitness_homozygous) |>
+  summarise(
+    n_successful = n(),
+    fraction = n_successful / n_tries,
+    .groups = "drop"
+  ) |>
+  group_by(scenario, fitness_heterozygous, fitness_homozygous) |>
+  summarise(
+    min = boot_quantile(n_successful, n_tries, 0.25),
+    max = boot_quantile(n_successful, n_tries, 0.75),
+    fraction = mean(fraction),
+    .groups = "drop"
+  ) |>
+  # Create label
+  mutate(
+    label = paste0(
+      format(fitness_heterozygous - 1, nsmall = 2),
+      " / ",
+      format(fitness_homozygous - 1, nsmall = 2)
+    )
+  ) |>
+  ggplot(aes(x = label, y = fraction, color = scenario)) +
+  geom_pointrange(
+    aes(ymin = min, ymax = max),
+    size = 0.2,linewidth = 0.8,  position = position_dodge(width = 0.2) # Add separation between points
+  ) +
+  xlab("Increase in fitness of the inverted \n haplotype (heterozygous / homozygous)") +
+  theme_minimal() +
+  ylab("Fraction of successful inversions") +
+  theme(
+    legend.position = "bottom",
+    plot.margin = margin(0, 0, 0, 0)
+  ) +
+  scale_color_manual(
+    name = "",
+    values = c("X = 100" = "black", "X = 2" = "red")
+  ) +
+  ylim(c(0, 1)) +
+  ggtitle("**C**") +
+  theme(plot.title = ggtext::element_markdown())
+
+
+final <- p1 / (p2 + p3)
+
+# Save the plot
 
 outfiles <- c(
   "fig_slim_s53.png", "fig_slim_s53.pdf", "fig_slim_s53.svg"

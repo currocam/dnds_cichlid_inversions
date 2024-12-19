@@ -1,0 +1,38 @@
+# Random seed
+seed: 1000
+# Here, rather than fixing the allele effect, we fix the desired fitness of an 
+# individual in the derived that is heterozygous or homozygous for all conditionally 
+# adaptive mutations. We considered 4 levels:
+target_het_fitness: [1.05, 1.10, 1.15, 1.20]
+target_hom_fitness: [1.20, 1.35, 1.50, 1.65]
+# Number of parameters to draw
+num_replicates: 150
+# Max number of generations after burnin
+max_runtime: 40000
+# Mutation rate
+mu: 1e-8
+# Recombination rate
+rho: 1e-8
+# Number of selected sites -> 2
+target_x: 2
+# Migration rate (fraction)
+migration_range: [0.001, 0.01]
+# Absolute deleterious fixed fitness effects
+s_d: 0.001
+# Fraction of synonymous mutations
+fraction_s: 0.309
+# Fraction of non-synonymous mutations
+fraction_n: 0.691
+# Length of the inversion
+inv_length: 10000000
+# All that's not inverted
+inv_offset: 1000000
+# Population sizes
+n_range: [5000, 5001]
+# Initial fraction of derived population
+init_n2_range: [0.01, 0.2]
+# Exponential growth of derived population
+alpha_range: [0.01, 0.05]
+# How many generations after "fixation" we wait (fraction of Ne)
+waiting_time: 0.4
+logging: 0

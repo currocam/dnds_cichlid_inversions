@@ -1,0 +1,274 @@
+initialize() {
+	// Set up genetics
+	defineConstantIfInteractive("MU", 1e-8);
+	defineConstantIfInteractive("RHO", 1e-8);
+	initializeRecombinationRate(RHO);
+	initializeMutationType("m1", 0.5, "f", 0.0); // non-coding
+	initializeMutationType("m2", 0.5, "f", 0.0); // synonymous
+	c(m1, m2).convertToSubstitution = T;
+	initializeMutationType("m3", 0.5, "f", 0.0); // non-synonymous (and deleterious)
+	m3.color="red";
+	// non-synonymous (and conditionally adaptive)
+	// Number of such sites in inverted haplotype
+	defineConstantIfInteractive("TARGET_X", 2);
+	defineConstantIfInteractive("C_ABS_EFFECT", 0.05);
+	initializeMutationType("m4", 0.5, "f", 0.0);
+	m4.color="green";
+	c(m3, m4).convertToSubstitution = T;
+	// We'll consider the fitness being a function of the conditionally adaptive
+	// and deleterious mutations such that
+	// f(X, Y, p1) = (1 - s_D)^Y * ( 1 - s_C1)^X * (1 - \epsilon1)^(X(X-1)/2)
+	// f(X, Y, p2) = (1 - s_D)^Y * ( 1 + s_C2)^X * (1 + \epsilon2)^(X(X-1)/2)
+	defineConstantIfInteractive("s_D", 0.001);
+	defineConstantIfInteractive("s_C1", 0.0512);
+	defineConstantIfInteractive("s_C2", 0.0512);
+	defineConstantIfInteractive("epsilon1", 0.05);
+	defineConstantIfInteractive("epsilon2", 0.05);
+	// We simulate a random chromosome structure with exons, introns and non-coding regions
+	// We consider introns to be evolving strictly neutral
+	// (so they are modelled as non-coding regions)
+	initializeGenomicElementType("g1",  m1, 1); // non-coding
+	// coding regions inside and outside the inversion
+	// Proportions were chosen so we would expect 30.9% of synonymous 
+	// and 69.1% of nonsynonymous substitutions to happen under purely
+	// neutral evolution (Pond, Frost, and Muse 2005)
+	defineConstantIfInteractive("FRACTION_S", 0.309);
+	defineConstantIfInteractive("FRACTION_N", 1-FRACTION_S);
+	initializeGenomicElementType("g2", c(m2, m3), c(FRACTION_S, FRACTION_N));
+	// Now, we define the inversion location
+	defineConstantIfInteractive("L", 11e6);
+	defineConstantIfInteractive("INV_LENGTH", 1e7);
+	defineConstant("INV_START", asInteger(L/2 - INV_LENGTH/2));
+	defineConstant("INV_END", INV_START + INV_LENGTH - 1);
+	// Set up chromosome structure
+	setUpChromosome(L);
+	// We'll keep track of the recombination with some special mutations
+	initializeMutationType("m5", 0.5, "f", 0.0); // start-inversion
+	initializeMutationType("m6", 0.5, "f", 0.0); // end-inversion
+	c(m5, m6).convertToSubstitution = F;
+	c(m5, m6).color = "blue";
+	// Demographic history
+	// We simulate two populations of constant size N1 and N2 
+	// and symmetric migration rate m
+	defineConstantIfInteractive("N1", 1000);
+	defineConstantIfInteractive("N2", 1000);
+	defineConstantIfInteractive("INIT_N2", 50);
+	defineConstantIfInteractive("ALPHA", 0.05);
+	defineConstantIfInteractive("MIGRATION", 0.005);
+	// Other parameters
+	defineConstantIfInteractive("BURNIN", 500);
+	defineConstant("T1", BURNIN+1);
+	defineConstantIfInteractive("RUNTIME", 10000);
+	defineConstantIfInteractive("WAITING", 100);
+	defineConstantIfInteractive("LOGGING", 1);
+}
+// We handle fitness manually
+mutationEffect(m3) { return 1.0; }
+mutationEffect(m4) { return 1.0; }
+
+// Initialize popoulations
+1 early() {
+	sim.addSubpop("p1", N1);
+	sim.addSubpop("p2", INIT_N2);
+	p2.setMigrationRates(p1, MIGRATION); // p1 -> p2
+	p1.setMigrationRates(p2, MIGRATION); // p2 -> p1
+	// Logging
+	if (LOGGING == 0)
+	{
+		defineConstant("log", community.createLogFile("/dev/stderr", logInterval=10));
+		log.addCycle();
+		log.addCustomColumn("N1", "p1.individualCount;");
+		log.addCustomColumn("N2", "p2.individualCount;");
+		log.addCustomColumn("FST", "calcFST(p1.genomes, p2.genomes);");
+		log.addCustomColumn("MAX X", "max(sim.subpopulations.individuals.genomes.countOfMutationsOfType(m4));");
+		log.addCustomColumn("Correlation", "cor(sim.subpopulations.individuals.countOfMutationsOfType(m4), sim.subpopulations.individuals.countOfMutationsOfType(m5));");
+		log.addCustomColumn(
+			"Frequency inversion P1",
+			"mean(p1.individuals.countOfMutationsOfType(m5));"
+			);
+		log.addCustomColumn(
+			"Frequency inversion P2",
+			"mean(p2.individuals.countOfMutationsOfType(m5));"
+			);
+	}
+}
+
+1: late() {
+	// Population 1 (original)
+	inds = p1.individuals;
+	Y = inds.countOfMutationsOfType(m3);
+	X = inds.countOfMutationsOfType(m4);
+	inds.fitnessScaling = (1-s_D)^Y * ( 1 - s_C1)^X * (1-epsilon1)^(X*(X-1)/2);
+	
+	// Population 2 (derived)
+	inds = p2.individuals;
+	Y = inds.countOfMutationsOfType(m3);
+	X = inds.countOfMutationsOfType(m4);
+	inds.fitnessScaling = (1-s_D)^Y * ( 1 + s_C2)^X * (1+epsilon2)^(X*(X-1)/2);
+}
+
+T1 late() {
+	// Sample 1 individual and assign add the mutations
+	founder = p2.sampleIndividuals(1);
+	inverted = founder.genome1;
+	inverted.addNewDrawnMutation(m4, drawWithinExons(TARGET_X));
+	inverted.addNewDrawnMutation(m5, INV_START);
+	inverted.addNewDrawnMutation(m6, INV_END);
+	community.deregisterScriptBlock(self);
+}
+
+T1+1 : early() {
+	// Exponential growth of derived population
+	newSize = asInteger(INIT_N2 * exp(ALPHA*(sim.cycle-T1)));
+	if (newSize>N2)
+	{
+		newSize = N2;
+		community.deregisterScriptBlock(self);
+	}
+	p2.setSubpopulationSize(newSize);
+}
+
+T1+1 : late() {
+	// Every tick, check if inversion have been lost
+	inv_start = sim.subpopulations.individuals.countOfMutationsOfType(m5);
+	
+	// Check if inversion was lost
+	if (sum(inv_start)== 0)
+	{
+		catn("##Inversion was lost after " + (sim.cycle-T1) + " generations");
+		stop("Inversion was lost");	
+	}
+}
+
+T1+1: late() {
+	// Check if inversion is predominant in derived population
+	if ((mean(p1.individuals.countOfMutationsOfType(m5))<0.3) & (mean(p2.individuals.countOfMutationsOfType(m5))>1.7))
+	{
+		defineConstant("T_END", sim.cycle+WAITING);
+		catn("#T_end: " + T_END, error=T);
+		community.deregisterScriptBlock(self);
+	}
+}
+
+T_END late() {
+	// We calculate the expected ratio Non-synonymous / Synonymous
+	// and Deleterious / Synonymous mutations
+	ns = FRACTION_N / FRACTION_S;
+	catn("##<N/S="+ns+",D/S="+ns+">");
+	catn("##<T1="+T1+">");
+	printTable();
+	sim.simulationFinished();
+}
+
+
+RUNTIME late() {
+    catn("##Max iteration reached!");
+    sim.simulationFinished();
+}
+
+
+// Handle inversion when it appears
+recombination() {
+	gm1 = genome1.containsMarkerMutation(m5, INV_START);
+	gm2 = genome2.containsMarkerMutation(m5, INV_START);
+	if (!(gm1 | gm2)) {
+		// homozygote non-inverted
+		return F;
+	}
+	inInv = (breakpoints > INV_START) & (breakpoints <= INV_END);
+	if (sum(inInv) % 2 == 0) {
+		return F;
+	}
+	if (gm1 & gm2) {
+		// homozygote inverted
+		left = (breakpoints == INV_START);
+		right = (breakpoints == INV_END + 1);
+		breakpoints = sort(c(breakpoints[!(left | right)],
+			c(INV_START, INV_END + 1)[c(sum(left) == 0, sum(right) == 0)]));
+		return T;
+	} else {
+		// heterozygote inverted: resample to get an even # of breakpoints
+		// this is *recursive*: it calls this recombination callback again!
+		breakpoints = sim.chromosome.drawBreakpoints(individual);
+	}
+	return T;
+}
+
+// Generate random genes along an approximately L
+// bases chromosome
+function (void)setUpChromosome(integer$ size) {
+	initializeGenomicElement(g1, 0, INV_START);
+	mut_ends = c(INV_START);
+	rates  = c(0.0);
+	base = INV_START+1;
+	while (base < INV_END) {
+		// make a non-coding region
+		nc_length = rdunif(1, 1000, 50000);
+		initializeGenomicElement(g1, base, base + nc_length - 1);
+		mut_ends = c(mut_ends, base + nc_length - 1);
+		rates  = c(rates, 0.0);
+		base = base + nc_length;
+		// make first exon
+		ex_length = asInteger(rlnorm(1, log(2000), log(2.0))) + 1;
+		initializeGenomicElement(g2, base, base + ex_length - 1);
+		mut_ends = c(mut_ends, base + ex_length - 1);
+		rates  = c(rates, MU);
+		base = base + ex_length;
+		// make additional intron-exon pairs
+		do
+		{
+			in_length = asInteger(rlnorm(1, log(3000), log(1.5))) + 10;
+			initializeGenomicElement(g1, base, base + in_length - 1);
+			mut_ends = c(mut_ends, base + in_length - 1);
+			rates  = c(rates, 0.0);
+			base = base + in_length;
+			ex_length = asInteger(rlnorm(1, log(2000), log(2.0))) + 1;
+			initializeGenomicElement(g2, base, base + ex_length - 1);
+			mut_ends = c(mut_ends, base + ex_length - 1);
+			rates  = c(rates, MU);
+			base = base + ex_length;
+		}
+		while (runif(1) < 0.8);
+		// 20% probability of stopping
+	}
+	// final non-coding region
+	initializeGenomicElement(g1, base, size);
+	mut_ends = c(mut_ends, size);
+	rates  = c(rates, 0.0);
+	initializeMutationRate(rates, mut_ends);
+}
+
+function (void)defineConstantIfInteractive(string$ symbol, * value) {
+	if (F)
+		defineConstant(symbol, value);
+}
+
+function (void)printTable(void) {
+	haplotypes = sim.subpopulations.individuals.genomes;
+	start_inv = sim.mutationsOfType(m5);
+	inv_vec = asInteger(haplotypes.containsMutations(start_inv));
+	muts = c(
+		sim.mutationsOfType(m2),
+		sim.mutationsOfType(m3),
+		sim.mutationsOfType(m4)
+		);
+	for (mut in muts)
+	{
+		pearson = cor(
+			inv_vec,
+			asInteger(haplotypes.containsMutations(mut))
+			);
+		catn(pearson+","+mut.mutationType.stringRepresentation());
+	}
+}
+
+
+function (numeric)drawWithinExons(numeric$ size) {
+	elms = sim.chromosome.genomicElements;
+	elms = elms[elms.genomicElementType == g2];
+	chosen = sample(elms, size, replace=T);
+	res = c();
+	for (exon in chosen)
+		res = c(res, rdunif(1, exon.startPosition, exon.endPosition));
+	return res;
+}
