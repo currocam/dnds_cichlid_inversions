@@ -1,5 +1,4 @@
-# This config file is repeated to produce different output
-# based on two models
+# Each config file produces a different CSV output
 # Random seed
 seed: 1000
 # Number of parameters to draw
@@ -16,6 +15,9 @@ target_x: 2
 migration_range: [0.001, 0.01]
 # Absolute deleterious fixed fitness effects
 s_d: 0.001
+# These parameters result on an individual homozygous
+# for all conditionally adaptive mutations having
+# a fitness advantage of 64%
 # Absolute conditionally adaptive mutations fitness effect (in original)
 s_c1: 0.0512
 # Absolute conditionally adaptive mutations fitness effect (in derived)

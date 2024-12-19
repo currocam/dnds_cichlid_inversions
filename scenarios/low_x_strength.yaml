@@ -1,3 +1,4 @@
+# Each config file produces a different CSV output
 # Random seed
 seed: 1000
 # Here, rather than fixing the allele effect, we fix the desired fitness of an 
