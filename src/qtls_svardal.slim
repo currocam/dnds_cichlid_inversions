@@ -1,0 +1,200 @@
+
+initialize() {
+	initializeSLiMModelType("nonWF");
+	// TO-DO: Change mutations run to 1 later
+	initializeSLiMOptions(mutationRuns=0);
+	// *Demographic model*
+	// From Svardal, Rueffler and Hermisson (2014)
+	defineConstant("n", 2); // Number of patches
+	// Absolute adult carrying capacity per patch
+	defineConstant("K", c(1000, 1000));
+	assert(n == length(K));
+	// Absolute juvenile carrying capacity per patch
+	defineConstant("C", c(5000, 5000));
+	assert(n == length(C));
+	// The fecundity is defined as the mean number of offspring per individual
+	// It is chosen such that the offspring population is large enough
+	// so the carrying capacity is always reached (this is ensured later)
+	defineConstant("rho", 10);
+	// Generation overlap (i.e. probability of adult survival)
+	defineConstant("gamma", 0.0);
+	// Dispersal proportion
+	defineConstant("m", 0.05);
+	// *Genetics setting*
+	// We consider a continuous adaptive phenotype
+	// under Gaussian stabilizing selection with
+	// specific patch optimum values
+	// (allowing for divergent selection)
+	defineConstant("theta", c(-1, 1));
+	assert(n == length(theta));
+	// The width of the Gaussian fitness curve
+	defineConstant("sigma", 1.0);
+	// neutral mutations, which are allowed to fix
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	// TO-DO: parametrize this later
+	// Fairly big effect sizes
+	initializeMutationType("m2", 0.5, "n", 0.00, 0.01);
+	m2.convertToSubstitution = F;
+	initializeGenomicElementType("g1", c(m1, m2), c(9, 1));
+	initializeGenomicElement(g1, 0, 99999);
+	initializeMutationRate(1e-7);
+	initializeRecombinationRate(1e-8);
+}
+
+// We manage those manually later
+mutationEffect(m2) { return 1.0;}
+
+1 late() {
+	// Create initial *adult *population in each patch
+	// The actual simulation loop starts at the 2nd tick
+	for (i in seqLen(n))
+		sim.addSubpop(i, K[i]);
+}
+
+// (1) The first step of the life cycle is reproduction
+function (void)poissonReproductionCall(object<Subpopulation> subpop, object<Individual>$ individual) {
+	nChildren = rpois(1, rho);
+	if (nChildren>0)
+	{
+		mate = subpop.sampleIndividuals(1);
+		subpop.addCrossed(individual, mate, count=nChildren);
+	}
+}
+
+// Number of offspring as a Poisson process
+//reproduction() {
+//	nChildren = rpois(1, rho);
+//	if (nChildren>0)
+//	{
+//		mate = subpop.sampleIndividuals(1);
+//		subpop.addCrossed(individual, mate, count=nChildren);
+//	}
+//}
+
+// Number of offspring is fixed (rmax=rho)
+reproduction() {
+	mate = subpop.sampleIndividuals(1);
+	subpop.addCrossed(individual, mate, count=rho);
+}
+
+// (2) we have "adult death" according to some
+// specified generation overlap gamma
+2: early() {
+	debug("---");
+	debug("Tick: " + (sim.cycle-1));
+	debug("After reproduction: " + paste(sim.subpopulations.individualCount));
+
+	nDead = asInteger(K * (1-gamma));
+	for (i in seqLen(n))
+		sim.killIndividuals(
+		sim.subpopulations[i].sampleIndividuals(nDead[i], minAge=1)
+		);
+	debug("After adult death: " + paste(sim.subpopulations.individualCount));
+
+}
+
+// (3) viability selection on  juveniles
+// f(y, theta_i) is the viability of
+// an individual with trait y in environment theta_i
+// The expected number of offspring before density
+// regulation in this model is equal to
+// f(y, theta_i) * rho
+function (numeric)viability(numeric y, numeric opt) {
+	return dnorm(y-opt, sd=sigma) / dnorm(0.0, sd=sigma);
+}
+
+2: early() {
+	for (i in seqLen(n))
+	{
+		pop = sim.subpopulations[i];
+		juveniles = pop.subsetIndividuals(maxAge=0);
+		// The trait is expressed on juveniles
+		juveniles.tagF = juveniles.sumOfMutationsOfType(m2);
+		weights = viability(juveniles.tagF, theta[i]);
+		sim.killIndividuals(
+			juveniles[weights<runif(length(weights))]
+		);
+	}
+	for (i in seqLen(n))
+		catn("P"+i+" mean phenotype: " + mean(sim.subpopulations[i].individuals.tagF));
+		catn("P"+i+" var phenotype: " + var(sim.subpopulations[i].individuals.tagF));
+
+	// Skip this for now, all survive next step
+	debug("After viability selection: " + paste(sim.subpopulations.individualCount));
+
+}
+
+// (4) density regulation  within patches
+2: early() {
+	// Trait-independent local density regulation decreases
+	// offspring to match the specific juvenile carrying capacity
+	for (i in seqLen(n))
+	{
+		pop = sim.subpopulations[i];
+		juveniles = pop.subsetIndividuals(maxAge=0);
+		excess = juveniles.size() - C[i];
+		assert(excess>= 0);
+		sim.killIndividuals(sample(juveniles, excess));
+	}
+	debug("After local density regulation: " + paste(sim.subpopulations.individualCount));
+
+}
+
+// (5) juvenile dispersal
+2: early() {
+	// A fraction m of the surviving offspring  disperses globally
+	// This is modeled as a global migrant pool, where the number
+	// of migrants each patch provides *and* recieves is proportional
+	// to the juvenile carrying capacity
+	// This works cause we just did density-regulation
+	nMigrants = asInteger(C*m);
+	pool = c(); // pool of individuals
+	destIndexes = c(); // dest pop vector
+	for (i in seqLen(n))
+	{
+		pop = sim.subpopulations[i];
+		destIndexes = c(destIndexes, rep(i, nMigrants[i]));
+		if (nMigrants[i]>0)
+			pool = c(pool,
+			pop.sampleIndividuals(nMigrants[i], maxAge=0)
+			);
+	}
+	// Re-distribution from the global pool
+	// Shuffle the destIndexes vector
+	destIndexes = sample(destIndexes, length(destIndexes));
+	// We *allow* migrants to return to their original patch
+	for (i in seqLen(n))
+		sim.subpopulations[i].takeMigrants(pool[destIndexes==i]);
+	debug("After migration: " + paste(sim.subpopulations.individualCount));
+
+}
+
+// (5) recruitment
+2: early() {
+	// offspring replace the deceased adults
+	// and offspring  that cannot establish die
+	nEstablihsed = asInteger(K * (1-gamma));
+	for (i in seqLen(n))
+	{
+		pop = sim.subpopulations[i];
+		juveniles = pop.subsetIndividuals(maxAge=0);
+		// SLiM will kill individuals according
+		// to that scalar in the next phase
+		juveniles.fitnessScaling=0.0;
+		sample(juveniles, nEstablihsed[i]).fitnessScaling=1.0;
+	}
+}
+
+2: late() {
+	debug("After recruitment: " + paste(sim.subpopulations.individualCount));
+
+}
+
+
+// output all fixed mutations at end
+10000 late() { sim.outputFixedMutations(); }
+
+function (void)debug([* x = ""]) {
+	if (F)
+		catn(x);
+}
