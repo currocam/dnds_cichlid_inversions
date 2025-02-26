@@ -1,4 +1,5 @@
 # Simulations of selection on inversion haplotypes
+[![DOI](https://zenodo.org/badge/898630257.svg)](https://doi.org/10.5281/zenodo.14930226)
 
 ## Overview
 
